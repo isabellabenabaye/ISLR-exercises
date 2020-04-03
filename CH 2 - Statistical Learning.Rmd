@@ -1,0 +1,74 @@
+---
+title: "CH 2 - Statistical Learning"
+output: html_notebook
+date: March 31, 2020 - 
+---
+
+# Import libraries and data
+
+```{r import data}
+library(tidyverse)
+
+advertising <- read_csv("data/Advertising.csv")
+income1 <- read_csv("data/Income1.csv")
+income2 <- read_csv("data/Income2.csv")
+```
+   
+# 2.1 What is Statistical Learning?
+
+> In essence, statistical learning refers to a set of approaches for estimating f. In this chapter we outline some of the key theoretical concepts that arise in estimating f, as well as tools for evaluating the estimates obtained.
+
+## 2.1.1 Why estimate f?
+
+> There are two main reasons that we may wish to estimate f: prediction and inference.
+
+### Prediction
+
+We can predict Y using an estimate for ${f}$. In predictions, ${f}$ is often treated as a black box, in the sense that one is not typically concerned with the exact form of ${f}$, provided that it yields accurate predictions for Y.
+
+The accuracy of $\hat{Y}$ as a prediction for Y depends on two quantities, which we will call the reducible error and the irreducible error.
+
+The focus of this book is on techniques for estimating ${f}$ with the aim of minimizing the reducible error. It is important to keep in mind that the irreducible error will always provide an upper bound on the accuracy of our prediction for Y . This bound is almost always unknown in practice.
+
+**Example:** a company that is interested in conducting a direct-marketing campaign. The goal is to identify individuals who will
+respond positively to a mailing, based on observations of demographic variables measured on each individual. In this case, the demographic variables serve as predictors, and response to the marketing campaign (either positive or negative) serves as the outcome. The company is not interested in obtaining a deep understanding of the relationships between each individual predictor and the response; instead, the company simply wants an accurate model to predict the response using the predictors.
+
+### Inference
+Now the goal is to estimate ${f}$ to understand the relationship between X and Y, and how Y changes as a function of $X_1$, $X_2$,..., $X_p$. 
+
+#### Questions:
+*Which predictors are associated with the response?
+*What is the relationship between the response and each predictor?
+*Can the relationship between Y and each predictor be adequately summarized using a linear equation, or is the relationship more complicated?
+
+**Example:** modeling the brand of a product that a customer might purchase based on variables such as price, store location, discount levels, competition price, and so forth. In this situation one might really be most interested in how each of the individual variables affects the probability of purchase. For instance, what effect will changing the price of a product have on sales?
+
+### Modeling for both prediction and inference
+**Example:** in a real estate setting, one may seek to relate values of
+homes to inputs such as crime rate, zoning, distance from a river, air quality, schools, income level of community, size of houses, and so forth. In this case one might be interested in how the individual input variables affect the prices—that is, how much extra will a house be worth if it has a view of the river? This is an inference problem. Alternatively, one may simply be interested in predicting the value of a home given its characteristics: is this house under- or over-valued? This is a prediction problem.
+
+## 2.1.2 How Do We Estimate ${f}$?
+*Training data* will be used to train (teach) our method how to estimate ${f}$.
+
+### Parametric Methods
+Parametric methods reduce the problem of estimating ${f}$ down to one of estimating a set of parameters.
+Parametric methods involve a two-step model-based approach.
+1. Make an assumption about the functional form/shape of ${f}$. Ex. ${f}$ is linear.
+2. After a model has been selected, we need a procedure that uses the
+training data to fit or train the model. Ex. The most common approach to fitting the model looking for $\beta$ is *ordinary least squares*.
+
+### Non-parametric Methods
+Non-parametric methods do not make explicit assumptions about the functional form of ${f}$. Instead they seek an estimate of ${f}$ that gets as close to the data points as possible without being too rough or wiggly. Such approaches can have a major advantage over parametric approaches: by avoiding the assumption of a particular functional form for ${f}$, they have the potential to accurately fit a wider range of possible shapes for ${f}$.
+
+
+## 2.1.3 The Trade-Off Between Prediction Accuracy and Model Interpretability
+
+## Advertising dataset
+*Falls into the inference paradigm.*
+__Input variables:__ `TV`, `radio`, and `newspaper`   
+__Output variable:__ `sales`
+
+Possible questions:
+*Which media contribute to sales?
+*Which media generate the biggest boost in sales?
+*How much increase in sales is associated with a given increase in TV advertising?
