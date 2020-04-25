@@ -1,0 +1,53 @@
+---
+title: "ISLR, Chapter 4 - Classification"
+author: "Isabella Benabaye"
+date: "4/25/2020"
+output: html_document
+---
+
+```{r import libraries, message=FALSE, warning=FALSE}
+library(MASS)
+library(ISLR)
+library(tidyverse)
+library(parsnip)
+```
+
+# Multiple Logistic Regression
+
+```{r credit cards}
+# ?Default
+
+# fit the model
+log_reg <- logistic_reg() %>% 
+  set_engine("glm") %>% 
+  fit(default ~ balance + income + student, data = Default)
+
+tidy(log_reg$fit)
+
+summary(log_reg$fit)
+
+# look at the difference in distribution of the balance for students & non-students
+Default %>% 
+  ggplot(aes(student,balance)) +
+  geom_boxplot()
+
+# get predictors
+X <- Default %>% 
+  select(-default)
+head(X)
+
+# compare prediction with the true y
+predictions <- log_reg %>% 
+  predict(new_data = X) %>% 
+  bind_cols(Default %>% select(default))
+
+predictions
+
+```
+
+# Assess Model Performance
+
+```{r assess model performance}
+
+```
+
