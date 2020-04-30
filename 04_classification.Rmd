@@ -9,12 +9,15 @@ output: html_document
 library(MASS)
 library(ISLR)
 library(tidyverse)
-library(parsnip)
+library(tidymodels)
 ```
 
 # Multiple Logistic Regression
 
+## `Default` data
+
 ```{r credit cards}
+# look at the deatils of the dataset
 # ?Default
 
 # fit the model
@@ -45,9 +48,187 @@ predictions
 
 ```
 
-# Assess Model Performance
+## Lab - `Smarket` data
 
-```{r assess model performance}
+Using the dataset `Smarket` from the `ISLR` package.
+
+`Direction` is going to be the response, it indicates whether the market went up or down since the previous day.
+
+```{r LDA - fit}
+summary(Smarket)
+names(Smarket)
+help("Smarket")  ## to get the details of the dataset
+
+# look at the pairplot of all the variables using GGally
+# pairs(Smarket, col = Smarket$Direction)
+GGally::ggpairs(Smarket, aes(color = Direction))
+
+# fit the model
+smarket_model <- logistic_reg() %>% 
+  set_engine("glm") %>% 
+  fit(Direction ~ Lag1 + Lag2 + Lag3 + Lag4 + Lag5 + Volume, data = Smarket)
+
+# look at just the intercepts
+tidy.model_fit(smarket_model)
+
+# look at the full summary of the fitted model
+summary(smarket_model$fit)
+```
+
+None of the coefficients are significant & there is only a modest change in deviance-- only four units  
+
+Null deviance = deviance for the mean, log likelihood if you just use the mean model
+Residual deviance = deviance of the model with all the predictors 
+
+```{r LDA - predictions}
+# predicting the response of the data used to train/fit the model
+predictions <- smarket_model$fit %>% 
+  predict(type = "response")
+
+
+# output is a vector of fitted probabilities
+predictions[1:5]
+```
+
+The predictions are close to 50%-- not strong predictions, which is expected with stock data.
+
+Turning the predictions into classifications by setting a threshold to 0.5:
+
+```{r LDA - classifying}
+predictions <- ifelse(predictions > 0.5, "Up", "Down") 
+predictions
+
+# confusion matrix
+table(predictions,Smarket$Direction)
+# accuracy
+mean(predictions == Smarket$Direction)
+```
+
+Many of the observations were misclassified.
+
+### Train/test Split -> New fit -> New predictions
+
+```{r}
+train <- Smarket %>% filter(Year < 2005)
+test <- Smarket %>% filter(Year >= 2005)
+
+smarket_model <- logistic_reg() %>% 
+  set_engine("glm") %>% 
+  fit(Direction ~ Lag1 + Lag2 + Lag3 + Lag4 + Lag5 + Volume, data = train)
+
+predictions <- smarket_model %>% 
+  predict(new_data = test) %>% 
+  bind_cols(test %>% select(Direction))
+
+# confusion matrix
+predictions %>% 
+  conf_mat(Direction, .pred_class)
+
+# accuracy
+mean(predictions$Direction == predictions$.pred_class)
+```
+
+The model does worse than the null rate (50%) with only 48% accuracy. We're probably overfitting. We can try reducing the predictors to just the most important ones, `Lag1` and `Lag2`s
+
+```{r}
+smarket_model <- logistic_reg() %>% 
+  set_engine("glm") %>% 
+  fit(Direction ~ Lag1 + Lag2, data = train)
+
+predictions <- smarket_model %>% 
+  predict(new_data = test) %>% 
+  bind_cols(test %>% select(Direction))
+
+# confusion matrix
+predictions %>% 
+  conf_mat(Direction, .pred_class) %>% 
+  autoplot()
+
+# accuracy
+mean(predictions$Direction == predictions$.pred_class)
+
+summary(smarket_model$fit)
+```
+
+The predictors are still not significant, but the prediction performance slightly improved.
+
+# Linear Discriminant Analysis
+
+We will use the same response and predictor variables and see if LDA can do a better job.
+
+```{r}
+lda_smarket <- lda(Direction ~ Lag1 + Lag2, data = train)
+
+# summarize results
+lda_smarket
+
+# plot the lda fit
+# it plots the linear discriminant function for the two y groups
+plot(lda_smarket)
+```
+
+The two histograms look very familiar & the prior probabilities are almost equal.
+
+Now we'll predict the `Direction` for the year 2005
+
+```{r}
+test <- test %>% filter(year == 2005)
+
+predictions <- predict(lda_smarket, test)
+
+# predict() outputs a list, which we can make into a tibble
+predictions <- data.frame(predictions)
+
+# Predicted class, posterior probabilities, values of the LDA score
+str(predictions)
+
+# confusion matrix
+table(predictions$class, test$Direction)
+
+# accuracy
+mean(predictions$class == test$Direction)
+```
+
+# K Nearest Neighbors
+
+This time we'll predict Direction using `knn` from the library `class`.
+
+```{r}
+# ?knn
+
+Xlag_train <- train %>% select(Direction, Lag1, Lag2)
+
+Xlag_test <- test %>% select(Direction, Lag1, Lag2)
+
+Xlag_train2 <- train %>% select(Lag1, Lag2)
+
+Xlag_test2 <- test %>% select(Lag1, Lag2)
+
+# using parsnip, which uses kknn() - Weighted K-Nearest Neighbor Classifier
+
+knn_smarket <- nearest_neighbor() %>% 
+  set_engine("class") %>% 
+  set_mode("classification") %>% 
+  fit(Direction ~ Lag1 + Lag2, data = Xlag_train)
+
+predictions <- knn_smarket %>% 
+  predict(new_data = Xlag_test) %>% 
+  mutate(truth = test$Direction)
+
+predictions %>% 
+  conf_mat(truth,.pred_class)
+
+mean(predictions$truth == predictions$.pred_class)
+
+# using knn()
+set.seed(1)
+knn <- knn(train = Xlag_train2, test = Xlag_test2, train$Direction, k=3)
+
+table(knn,test$Direction)
+
+mean(knn == test$Direction)
+
 
 ```
 
+k = 1 nearest neighbor did no better than flipping a coin.
