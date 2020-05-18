@@ -1,4 +1,4 @@
-ISLR, Chapter 3
+ISLR, Chapter 3 - Linear Regression
 ================
 
 ``` r
@@ -32,7 +32,7 @@ Boston %>%
   geom_point(size = 3, alpha = .3)
 ```
 
-![](linear_regression_files/figure-gfm/plot1-1.png)<!-- -->
+![](03_linear_regression_files/figure-gfm/plot1-1.png)<!-- -->
 
 ## Fit a linear model
 
@@ -81,7 +81,7 @@ plot(medv ~ lstat, Boston)  ## add linear model fit to the plot
 abline(fit1, col = "red")
 ```
 
-![](linear_regression_files/figure-gfm/plot2-1.png)<!-- -->
+![](03_linear_regression_files/figure-gfm/plot2-1.png)<!-- -->
 
 ``` r
 ## in ggplot2
@@ -91,7 +91,7 @@ Boston %>%
   geom_smooth(method = 'lm', formula = y ~ x)
 ```
 
-![](linear_regression_files/figure-gfm/plot2-2.png)<!-- -->
+![](03_linear_regression_files/figure-gfm/plot2-2.png)<!-- -->
 
 ## Get the confidence interval for the coefficients
 
@@ -194,7 +194,7 @@ par(mfrow = c(2,2))
 plot(fit3)
 ```
 
-![](linear_regression_files/figure-gfm/unnamed-chunk-1-1.png)<!-- -->
+![](03_linear_regression_files/figure-gfm/unnamed-chunk-1-1.png)<!-- -->
 
 The curved residuals line in the Residuals vs Fitted plot indicates that
 the model is not quite caputring everything that’s going on and there
@@ -313,7 +313,7 @@ plot(medv ~ lstat)
 points(lstat, fitted(fit6), col = "red", pch = 20) ## get fitted values from our model; pch = plotting character
 ```
 
-![](linear_regression_files/figure-gfm/plot3-1.png)<!-- -->
+![](03_linear_regression_files/figure-gfm/plot3-1.png)<!-- -->
 
 ``` r
 ## in ggplot2
@@ -323,7 +323,7 @@ Boston %>%
   geom_point(aes(x = lstat, y = fitted(fit6)), color = "blue")
 ```
 
-![](linear_regression_files/figure-gfm/plot3-2.png)<!-- -->
+![](03_linear_regression_files/figure-gfm/plot3-2.png)<!-- -->
 
 There’s actually an easier way of fitting polynomials using the `poly()`
 function:
@@ -335,7 +335,7 @@ points(lstat, fitted(fit6), col = "red", pch = 20)
 points(lstat, fitted(fit7), col = "blue", pch = 20)
 ```
 
-![](linear_regression_files/figure-gfm/fit7-1.png)<!-- -->
+![](03_linear_regression_files/figure-gfm/fit7-1.png)<!-- -->
 
 The fourth degree polynomial seems to over-fit the data a bit.
 
@@ -440,7 +440,7 @@ attach(Carseats)
 regplot(Price,Sales)
 ```
 
-![](linear_regression_files/figure-gfm/function1-1.png)<!-- -->
+![](03_linear_regression_files/figure-gfm/function1-1.png)<!-- -->
 
 Let’s try adding `...` so that we can add any amount of new arguments to
 our function:
@@ -455,4 +455,4 @@ regplot = function(x,y,...) {
 regplot(Price, Sales, xlab = "Price", ylab = "Sales", col = "blue", pch = 20)
 ```
 
-![](linear_regression_files/figure-gfm/function%202-1.png)<!-- -->
+![](03_linear_regression_files/figure-gfm/function%202-1.png)<!-- -->

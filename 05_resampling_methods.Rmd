@@ -1,0 +1,160 @@
+---
+title: "ISLR, Chapter 5 - Resampling Methods"
+date: April 30, 2020 
+output: github_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r import libraries, message=FALSE, warning=FALSE}
+library(MASS)
+library(ISLR)
+library(tidyverse)
+library(tidymodels)
+
+library(boot)
+```
+
+```{r setup}
+theme_set(theme_minimal())
+```
+
+
+# Cross-Validation
+
+Looking at the data 
+
+```{r}
+Auto %>% 
+  ggplot(aes(horsepower,mpg)) + geom_point(size = 5, alpha = 0.5)
+```
+
+Miles per gallon drops quite substantially as horsepower increases.
+
+## Linear model & Leave One Out Cross-Validation (LOOCV)
+
+```{r}
+# ?cv.glm
+
+# glm() by default fits to the linear model if no family is specified
+glmfit <- glm(mpg ~ horsepower, data = Auto)
+
+# LOOCV
+cv_error <- cv.glm(Auto, glmfit)
+
+cv_error
+
+cv_error$delta[1]
+# 1st delta = raw LOOCV result
+# 2nd delta = bias-corrected version 
+```
+
+### Trying out different polynomial fits
+
+We can test out fitting polynomial regressions for polynomials of order i=1 to i=5, then store each fit's cross-validation error (test error estimate, weighted MSE)
+
+```{r auto - polynomial fits}
+cv_errors <- rep(0,5)  ## initialize cv_errors where we will place each fit's CV error
+cv_errors
+
+degree = 1:5
+
+## iterate fitting the polynomial models and saving each one's CV error
+for (d in degree) {
+  glmfit <- glm(mpg ~ poly(horsepower, d), data = Auto)
+  cv_errors[d] <- cv.glm(Auto, glmfit)$delta[1]  ## saving the raw CV errors
+}
+
+cv_errors
+
+plot(degree,cv_errors, type = "b")
+```
+
+## Linear model & 10-fold Cross-Validation
+
+To get the do 10-fold CV and get the CV errors, you just need to add the `K = 10` argument to the `cv.glm()` function, otherwise the steps above are the same.
+
+```{r}
+cv_errors10 <- rep(0,5)  
+
+degree = 1:5
+
+## iterate fitting the polynomial models and saving each one's CV error
+for (d in degree) {
+  glmfit <- glm(mpg ~ poly(horsepower, d), data = Auto)
+  cv_errors10[d] <- cv.glm(Auto, glmfit, K = 10)$delta[1]  ## saving the raw CV errors
+}
+
+cv_errors
+
+lines(degree,cv_errors10, type = "b", col = "red")
+```
+
+In this case, LOOCV and 10-fold CV pretty much told us the same story, that the quadratic models (as we could have guessed based on the scatter plot) give us much lower test error estimates than linear models, but cubic and higher-order polynomial models don't offer any significatn improvement.
+
+
+# The Bootstrap
+
+We will be looking at the dataset `Portfolio`:
+
+> A simple simulated data set containing 100 returns for each of two assets, X and Y. The data is used to estimate the optimal fraction to invest in each asset to minimize investment risk of the combined portfolio. One can then use the Bootstrap to estimate the standard error of this estimate.
+
+In this case, we want to estimate alpha where 
+
+alpha = the optimal fraction to invest in X
+1-aplha = the optimal fraction to invest in Y
+
+Since there is variability associated with the returns on these two assets, we wish to choose α to minimize the total risk, or variance, of our investment, i.e.:
+
+We want to minimize Var(αX +(1 −α)Y ).
+
+```{r}
+# ?Portfolio
+
+# prepare teh function for getting alpha
+alpha <- function(x,y) {
+  var_x = var(x)
+  var_y = var(y)
+  cov_xy = cov(x,y)
+  
+  return ((var_y - cov_xy)/(var_x + var_y - 2*cov_xy))
+} # the function will return the last line that was evaluated
+
+# run it on Portfolio
+alpha(Portfolio$X, Portfolio$Y)
+```
+
+The estimated alpha of Portfolio is 0.5758321.
+
+Now we'll get the bootstraps and estimated standard error:
+
+```{r}
+apply(Portfolio, alpha(X,Y))
+map2(Portfolio$X,Portfolio$Y,alpha)
+str(Portfolio)
+alpha_fn <- function(data, index) {
+    X <- data$X[index]
+    Y <- data$Y[index]
+    return((var(Y) - cov(X, Y))/(var(X) + var(Y) - 2 * cov(X, Y)))
+}
+
+# set seed
+set.seed(1)
+
+# one boostrap example
+alpha_fn(Portfolio, 1:100)
+
+# 1000 bootstraps
+bootstraps <- boot(Portfolio, alpha_fn, R = 1000)
+
+# we're interested in the standard error computed from the bootstrap samples
+bootstraps
+
+# plot the bootstrap estimates
+plot(bootstraps)
+```
+
+The plots show that the alpha may be Gaussian.
+
+Process: 
+define function that you want to estimate -> get sample of data to compute the estimate -> use boot() to automate getting different samples from the dataset & getting the estimate of each replicate 

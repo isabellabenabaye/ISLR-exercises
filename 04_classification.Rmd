@@ -1,8 +1,7 @@
 ---
 title: "ISLR, Chapter 4 - Classification"
-author: "Isabella Benabaye"
-date: "4/25/2020"
-output: html_document
+date: "April 25-19, 2020"
+output: github_document
 ---
 
 ```{r import libraries, message=FALSE, warning=FALSE}

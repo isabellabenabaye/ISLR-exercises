@@ -1,7 +1,7 @@
 ---
-title: "CH 2 - Statistical Learning"
-output: html_notebook
-date: March 31, 2020 - 
+title: "ISLR, Chapter 2 - Statistical Learning"
+output: github_document
+date: March 31, 2020
 ---
 
 # Import libraries and data
