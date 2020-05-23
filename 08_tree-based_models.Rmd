@@ -1,0 +1,210 @@
+---
+title: "ISLR, Chapter 8 - Tree-Based Methods"
+output: github_document
+date: May 22, 2020
+---
+
+# Decision Trees - Classification Problem
+
+The data we'll be using is `Carseats` using the `tree` package in R.
+
+We'll create a binary response variable `High` (for high sales), and include it in the same dataframe.
+
+```{r}
+library(ISLR)
+library(tree)
+library(tidyverse)
+
+Carseats %>% 
+  ggplot(aes(Sales)) +
+  geom_histogram(bins = 9)
+
+# Turn Sales into a binary variable
+high = factor(ifelse(Carseats$Sales <= 8, "No", "Yes"))
+Carseats <- data.frame(Carseats,high)
+```
+
+
+Now we'll fit a tree to this data, summarize it, then plot it. We have to ..exclude.. `Sales` from the right-hand side of the formula because the response is derived from it
+
+```{r}
+X <- Carseats %>% 
+  select(-Sales)
+tree_carseats  <- tree(high ~ ., X)
+
+summary(tree_carseats)
+
+# Plot the tree
+plot(tree_carseats)
+# Annotate the tree
+text(tree_carseats, pretty = 0)
+```
+
+This tree is pretty big, we will try to prune it down.
+
+Now we'll split the data into a training and test set (250,150) split of the 400 observations, grow the tree on the training set, then evaluate its performance on the test set:
+
+```{r}
+set.seed(1011)
+
+# Take a random sample of indexes
+## by default sample() uses without replacement
+train <- sample(1:nrow(Carseats),250)
+
+# Refit the model using the train subset
+tree_carseats <- tree(high ~ ., X, subset = train)
+
+plot(tree_carseats)
+text(tree_carseats, pretty = 0)
+
+# Predict the test observations using the tree
+tree_pred <- predict(tree_carseats, Carseats[-train,], type = "class")
+with(Carseats[-train,], table(tree_pred,high))
+
+# Error rate
+(66 + 43)/150
+
+# Use CV to optimally prune the tree
+# 10-fold CV
+cv_carseats <- cv.tree(tree_carseats, FUN = prune.misclass)
+cv_carseats
+plot(cv_carseats)
+```
+
+Output - details the path of the cross validation:
+1. Size of the trees as they were pruned back
+2. Deviance as the pruning proceeds - in this case drops and increases
+3. Cost complexity parameter
+
+Now we can pick a value at the minimum-- 10 then prune the tree to that size (fit on the full training data).
+
+```{r}
+prune_carseats <- prune.misclass(tree_carseats, best = 13)
+plot(prune_carseats)
+text(prune_carseats, pretty = 0)
+```
+
+Now the tree is shallower and we can read the labels. Now we can evaluate it on the test data again to see how it did.
+
+```{r}
+tree_pred <- predict(tree_carseats, Carseats[-train,], type = "class")
+with(Carseats[-train,], table(tree_pred,high))
+
+(67 + 44)/150
+```
+
+It did only 2% better. Didn't improve much but we got a shallower tree that is easier to interpret.
+
+# Random Forests and Boosting
+
+These methods use trees as building blocks to build more complex models.
+
+We'll use the Boston housing data (from the `MASS` package to explore random forests and boosting. It gives us housing values and other statistics in each of 506 suburbs of Boston based on a 1970 census.
+
+## Random Forests
+
+Random forests build lots of bushy trees, then average them to reduce the variance.
+
+```{r}
+library(randomForest)
+library(MASS)
+
+set.seed(101)
+dim(Boston)
+## 506 obs, 14 variables
+
+# Get the indexes for a training set of 300
+train <- sample(1:nrow(Boston), 300)
+```
+
+Our response will be `medv`, the median housing value (in \$1k)
+
+```{r}
+rf_boston <- randomForest(medv ~ ., data = Boston, subset = train)
+rf_boston
+```
+
+The output displays Out-of-Bag mean squared residuals (each observation was predicted using the average of trees that didn't include it - debiased estimates of prediction error). 
+
+The only tuning parameter of a random forest is `mtry`, the number of variables that are selected at each split of each tree (d). This is how random forests de-correlate the trees.
+
+We will fit a series of random forests-- since there are 13 variables we will have mtry range from 1-13, then we'll record the errors using `oob_err` and `test_err`.
+
+```{r}
+oob_err <- double(13)
+test_err <- double(13)
+
+## 13 x 400 trees
+for (mtry in 1:13) {
+  ## make the number of trees 400
+  fit = randomForest(medv ~ ., data = Boston, subset = train, mtry = mtry, ntree = 400)
+  oob_err[mtry] <- fit$mse[400]
+  ## predict on the test data
+  pred <- predict(fit, Boston[-train,])
+  ## compute the test error
+  test_err[mtry] <- with(Boston[-train,], mean((medv - pred)^2))
+  ## print the value of mtry as it's going
+  cat(mtry, " ")
+}
+
+# Plot
+matplot(1:mtry, cbind(test_err, oob_err), pch = 19, col = c("red", "blue"), type = "b", ylab = "Mean Squared Error")
+legend("topright", legend = c("OOB", "Test"), pch = 19, col = c("red", "blue"))
+```
+
+Ideally, the curves should line up.
+
+There is a lot of variability in these test error estimates. The error estimates are very correlated because the random forest with mtry = 4 is very similar to mtry = 5. mtry around 4 seems to be the best, for both the OOB and test error. We were able to reduce the error of the tree with mtry = 1 by a little less than half. The trees with mtry = 13 is bagging.
+
+## Boosting
+
+Boosting goes after bias (RF - variance)-- it builds a lot of smaller trees. Unlike random forests, each new tree in boosting tries to patch up the deficiencies of the current ensemble.
+
+We'll use the package gbm (gradient boosted machines).
+
+```{r}
+library(gbm)
+
+## we'll use a gaussian distribution since we're doing a squared error loss
+## we'll ask gbm for 10,000 shallow trees (since interaction depth is 4 - 4 splits per tree)
+## shrinkage/lambda will be 0.01 
+boost_boston = gbm(medv ~ ., data = Boston[train,], distribution = "gaussian", n.trees = 10000, shrinkage = 0.01, interaction.depth = 4)
+
+# Get the variable importance plot using summary()
+summary(boost_boston)
+```
+
+`rm` and `lstat` (percentage of lower economic status people in the community) are the most important variables.
+
+A partial dependence plot on the two variables:
+
+```{r}
+plot(boost_boston, i = "lstat")
+plot(boost_boston, i = "rm")
+```
+
+The higher the proportion of lower status people in the community, the lower the value of the house. The value of the house has a reversed relationship with the number of rooms, the more rooms in the house, the higher the house value.
+
+Now we'll predict using our boosted model on the test dataset. With boosting, the number of trees is a tuning parameter, and if we have to many we can over fit. So, we should use cross validation to select the number of trees. We should also use CV to select the shrinkage parameter. * Left as an exercise *
+
+We will compute the test error as a function of the number of trees and make a plot to see the test performance (as a function of the number of trees).
+
+```{r}
+n_trees <- seq(from = 100, to = 10000, by = 100)
+pred_mat <- predict(boost_boston, newdata = Boston[-train,], n.trees = n_trees)
+
+dim(pred_mat)
+## 206 test observations, 100 different predict vectors
+
+# Compute the test error
+## medv is a vector
+## computes column-wise mean squared error
+boosting_err <- with(Boston[-train,], apply((pred_mat - medv)^2, 2, mean))
+
+# Plot
+plot(n_trees, boosting_err, pch = 19, ylab = "Mean Squared Error", xlab = "# of Trees", main = "Boosting Test Error")
+## add the best test error from the random forest to the plot for comparison
+abline(h = min(test_err), col = "red")
+```
+
+It looks like the boosting error drops down lower than the RF, and seems to level off. This is evidence of the claim that boosting is reluctant to over fit. We can also see that boosting got a reasonable amount below the test error for the random forest.
