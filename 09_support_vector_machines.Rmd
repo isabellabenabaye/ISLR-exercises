@@ -1,0 +1,143 @@
+---
+title: "ISLR, Chapter 9 - Support Vector Machines"
+output: github_document
+date: May 27, 2020
+---
+
+To demonstrate SVMs,, it is easiest to work in low dimensions so that we can see the data.
+
+# Linear SVM Classifier
+
+Let's generate some data in two dimensions and make them a little separated.
+
+```{r}
+set.seed(10111)
+# 20 observations, 2 classes, 2 variables, normally distributed
+x = matrix(rnorm(40),20,2)
+# response is either -1 or 1, 10 in each class
+y = rep(c(-1,1),c(10,10))
+# when y = 1, the mean will be 1 instead of 0 in each coordinate
+x[y == 1,] <- x[y == 1,] + 1
+
+# Plot the data
+plot(x, col = y + 3, pch = 19)
+```
+
+The package `e1071` contains the `svm` function. We'll compute the fit and specify the tuning parameter `cost`.
+
+```{r}
+library(e1071)
+
+df <- data.frame(x, y = as.factor(y))
+# kernel = "linear" - support vector classifier
+# scale = FALSE won't standardize the variables
+svmfit <- svm(y ~ ., data = df, kernel = "linear", cost = 10, scale = FALSE)
+print(svmfit)
+```
+
+The number of support vectors is 6. Recall, the support vectors are the points that are close to the boundary or on the wrong side of the boundary.
+
+There is a (not so nice) plot for the SVMs that shows you the decision boundary. It also breaks convention by putting x1 on the y-axis and x2 on the x-axis. 
+
+```{r}
+plot(svmfit, df)
+```
+ 
+We'll make our own plot now. First, we'll make a grid of values for x1 and x2 (using a function so that we can reuse it). It'll use the function `expand.grid` and produce the coordinates of `n*n`points on a lattice covering the domain of `x`. Then we'll predict the classifier at each point on the lattice then color code the points according to the classification to see the decision boundary.
+
+The support points (points on the margin or on the wrong side of the boundary) are indexed in the `$index` component of the fit.
+
+```{r}
+# takes an argument for number of points in each direction
+# in this case we'll ask for a 75x75 grid
+make_grid <- function (x, n = 75) {
+  # first use apply to get the range of each of the variables in x
+  grange <- apply(x, 2, range)
+  # for each x variable it uses seq() to go from the lowest value to the upper value and make a grid of length n = 75, uniformly spaced values on each of the coordinates
+  x1 <- seq(from = grange[1,1], to = grange[2,1], length = n)
+  x2 <- seq(from = grange[1,2], to = grange[2,2], length = n)
+  # expand.grid() takes the two and makes the lattice for you
+  expand.grid(X1 = x1, X2 = x2)
+}
+
+xgrid <- make_grid(x)
+
+# now we'll predict from our svm fit at the values on this grid (new data is xgrid)
+ygrid <- predict(svmfit, newdata = xgrid)
+
+# plot the decision boundary - plot all the points in xgrid, color them according to what the prediction was
+plot(xgrid, col = c("red","blue")[as.numeric(ygrid)], pch = 20, cex = .2)
+# now plot the original points
+points(x, col = y + 3, pch = 19)
+# on the svmfit is a component called index that tells you which are the support points
+points(x[svmfit$index,], pch = 5, cex = 2)
+```
+
+`svm` is a general function, so it doesn't provide the linear coefficients and we'll have to extract them ourselves. We'll extract the linear coefficients, then using simple algebra, include the decision bounary and the two margins.
+
+```{r}
+beta <- drop(t(svmfit$coefs) %*% x[svmfit$index,])
+beta0 <- svmfit$rho
+
+plot(xgrid, col = c("red","blue")[as.numeric(ygrid)], pch = 20, cex = .2)
+# now plot the original points
+points(x, col = y + 3, pch = 19)
+# use the coefficients to draw the decision boundary - slope and intercept
+abline(beta0 / beta[2], -beta[1]/beta[2])
+# now use it to put in the margins
+abline((beta0 - 1) / beta[2], -beta[1]/beta[2], lty = 2)
+abline((beta0 + 1) / beta[2], -beta[1]/beta[2], lty = 2)
+```
+
+# Nonlinear Support Vector Machines
+
+The data we'll use is the mixture data from ESL.
+When fitting a support vector machine the cost parameter is a tuning parameter that one would normally have to select (for ex. using CV) but we won't do that here.
+
+```{r}
+load(file = "data/ESL.mixture.rda")
+names(ESL.mixture)
+```
+
+The training data are `x` and `y`.
+
+```{r}
+plot(ESL.mixture$x, col = ESL.mixture$y +1)
+df <- data.frame(y = factor(ESL.mixture$y), ESL.mixture$x)
+
+# Fit the SVM with a radial kernel
+fit <- svm(factor(y) ~ ., data = df, scale = FALSE, kernel = "radial", cost = 5)
+```
+
+Now we'll create a grid again and make predictions on the grid. The mixture data came supplied with grid points for each variable, `px1` and `px2`, so we don't have to use the function we created, we can use expand.grid directly.
+
+```{r}
+xgrid <- expand.grid(X1 = ESL.mixture$px1, X2 = ESL.mixture$px2)
+ygrid <- predict(fit, xgrid)
+
+plot(xgrid, col = as.numeric(ygrid), pch = 20, cex = .2)
+points(ESL.mixture$x, col = ESL.mixture$y + 1, pch = 19)
+# put the data on the plot
+points(ESL.mixture$x, col = ESL.mixture$y +1, pch = 19)
+```
+
+You can see that the decision boundary follows where the data is, but in a non-linear way.
+
+We can improve this plot further by having the predict function produce teh actual function estimates at each of our grid points. We can include the actual decision boundary on the plot by making use of the contour function. The mixture data also contains a column `prob`, which gives the true probability of a 1 vs -1 at every value on the grid that we have here. We'll predict from our model-- not just the class label but also the function itself to get the decision boundary that's learned from the data by plotting the contour of that function. If we plot the contour of `prob` at 0.5, that will give us the *Bayes Decision Boundary*, which is the best we could possibly do.
+
+```{r}
+# use decision.values to get the function, not just the classification
+func <- predict(fit, xgrid, decision.values = TRUE)
+# it returns the decision as an attribute of the classified values - so we'll extract it
+func <- attributes(func)$decision
+
+plot(xgrid, col = as.numeric(ygrid), pch = 20, cex = .2)
+points(ESL.mixture$x, col = ESL.mixture$y + 1, pch = 19)
+
+# add our contour
+contour(ESL.mixture$px1, ESL.mixture$px2, matrix(func, 69, 99), level = 0, add = TRUE)
+# contour of the true probabilities
+contour(ESL.mixture$px1, ESL.mixture$px2, matrix(func, 69, 99), level = -0.5, add = TRUE, col = "blue", lwd = 2)
+```
+
+We can see that our non-linear support vector machine has gotten close to the true boundary, especially in the regions with a lot of data.
