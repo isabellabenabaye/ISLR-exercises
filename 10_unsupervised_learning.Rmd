@@ -1,0 +1,148 @@
+---
+title: "ISLR, Chapter 10 - Unsupervised Learning"
+output: github_document
+date: June 6, 2020
+---
+
+# Principal Components
+
+We will use the `USArrests` data (built in R).
+
+```{r}
+# Get names of each dimension/axis
+dimnames(USArrests)
+## each row is a state & the columns are the variables
+
+# Get means of each variable
+apply(USArrests, 2, mean)
+# Get variance of each variable
+apply(USArrests, 2, var)
+```
+
+Principal components is about the variance, so the means shouldn't play a role, but the variances of the individual variables will.
+
+Recall: Principal components look for the linear combination that maximizes the variance.
+
+Assault has a much larger variance than the other variables. It would dominate the principal components, so we should standardize the variables (to have unit variance) when we perform PCA. The differing variances is largely due to the fact that the variables are measured using different units.
+
+```{r}
+# Get the principal components + scale the variables
+pca_out <- prcomp(USArrests, scale = TRUE)
+pca_out
+```
+
+The standard deviations are the standard deviations of the four components.
+
+The rotation are the loadings.
+
+PC1: loaded equally on the three crimes. Seems like it is a measure of how much crime there is, an average of the three crimes (or the total amount of crime). The principal components don't care about signs because the variance of a negtive variable is the same as that of a positive one.
+
+PC2: more heavily loaded on whether the state has a high urban population.
+
+```{r}
+# Look at the output variables o pca_out
+names(pca_out)
+
+# Visualizing the principal components with a biplot (principal component scores + loadings)
+biplot(pca_out, scale = 0)
+```
+
+In the plot, we can see the directions of the loadings (direction vectors) for the principal components. 
+
+Negative scores * negative loadings -> positive -> states left on the PC1 axis have overall high crimes. On the other end are the states with low total crime. 
+
+The second axis (y) is about whether the state has got a large urban population or not. It also has a negative so those with negative scores have high urban populations. 
+
+# K-Means Clustering
+
+K-Means works in any dimension, but is most fun to demonstrate in two, because we can plot it. 
+
+We will make some data with clusters by shifting the means of the points around.
+
+```{r}
+set.seed(101)
+# Make a two-column matrix of random normals with 100 observations - a cloud of gaussians
+x <- matrix(rnorm(100*2), 100, 2)
+
+# Make four clusters by generating some 8 means - 2 for each cluster, with standard deviation 4 so that the means will be shifted around more than the data
+## 4 rows, 2 columns
+x_mean <- matrix(rnorm(8, sd = 4), 4, 2)
+
+# Deciding which rows get which means by picking a random sample from the numbers 1-4 - 100 of them, 1 for each observation
+which <- sample(1:4, 100, replace = TRUE)
+
+# Add the appropriate mean to the appropriate rows
+x <- x + x_mean[which,]
+
+# Plot
+plot(x, col = which, pch = 19)
+```
+
+This plot shows the true cluster IDs, which we won't show the k-means clustering algorithm.
+
+```{r}
+## 4 clusters, 15 random starts
+km_out <- kmeans(x, 4, nstart = 15)
+km_out
+```
+
+Outputs are the cluster means, clustering vector - the assignments of the observations, the within cluster sum of squares by cluster - (between_SS / total_SS) like the R^2 for clustering, the percent of variance explained by the cluster means, and the available components on the cluster object.
+
+```{r}
+# Plot the assigned clusters as outlined cirles
+plot(x, col = km_out$cluster, cex = 2, pch = 1, lwd = 2)
+# Add points of the real cluster assignments
+points(x, col = which, pch = 19)
+```
+
+# Hierarchical Clustering
+
+For hierarchical clustering we will use the same data.
+
+`dist()` computes the pairwise distance matrix
+`hclust()` is the function for hierarchical clustering 
+
+```{r}
+# Complete linkage
+hc_complete <- hclust(dist(x), method = "complete")
+plot(hc_complete)
+
+# Single linkage
+hc_single <- hclust(dist(x), method = "single")
+plot(hc_single)
+
+# Average linkage
+hc_average <- hclust(dist(x), method = "average")
+plot(hc_average)
+```
+
+Complete linkage: it looks like cutting at around 6, it was able to determine the 4 true clusters
+
+Single linkage: the four big groups we saw aren't as evident in this one, it seems to have found 3 big groups. Single linkage clustering tends to find long, strung out clusters.
+
+Average linkage: tends to be somewhere in between, but for this data we would probably prefer the complete linkage.
+
+Now we'll cut the tree at level 4 using `cutree()`. This will produce a vector of numbers from 1 to 4, saying which branch each observation is on.
+
+To see how they match we'll use `table`.
+
+```{r}
+hc_cut <- cutree(hc_complete,4)
+
+# In comparison with the real assignments
+table(hc_cut,which)
+
+# In comparison to k-means clustering
+table(hc_cut, km_out$cluster)
+
+table(which, km_out$cluster)
+```
+
+Hierarchical clustering missed 1 observation, hierarchical and k-means are different 1 observation, and k-means missed 2 observations.
+
+To view it in another way, we can show the hierarchical clustering using a complete linkage dendrogram but with the labels as the true assigned clusters.
+
+```{r}
+plot(hc_complete, labels = which)
+```
+
